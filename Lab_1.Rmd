@@ -1,0 +1,125 @@
+---
+title: "Lab 1"
+author: "Tess Hooper"
+date: "1/9/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, load packages, echo = FALSE, warning = FALSE}
+
+library(tidyverse)
+library(here)
+library(janitor)
+library(kableExtra)
+
+
+```
+
+Read in noaa_fisheries.csv data
+
+```{r, echo = FALSE, warning = FALSE}
+
+us_landings <- read_csv(here("data", "noaa_fisheries.csv")) # "Here" finds files within nested subfolders
+
+```
+
+
+Now, make a tidy version of the data frame:
+
+```{r, echo = FALSE}
+
+landings_tidy <- us_landings %>%
+  janitor::clean_names() %>%  #Using Janitor package, clean names to make column headers tidy format (lower case and no spaces)
+  mutate(state = str_to_lower(state), 
+         afs_name = str_to_lower(afs_name)) %>% #Going to make columns all lower case. Mutate will add a new column with the original column name (e.g. state), which will overwrite the existing column. Using a string to lower function to the already existing column. If you didn't want to overwrite the column, then make the column name something different (e.g. state_new)
+  mutate(dollars_num = parse_number(dollars_usd)) # Using parse_number to get rid of $ from USD column. This function drops any non-numeric characters before or after the first number. You can change the settings in parse_number to change the significant figures or digits 
+
+### Overall wrangling for the dataset is finished here. We can tidy individual species separately -- keep in mind what we want to use later. This way we will always have a clean tidy format of our initial data
+```
+
+
+Let's just get some information for salmon:
+
+```{r, echo = FALSE}
+
+salmon_landings <- landings_tidy %>% 
+  mutate(afs_clean = str_remove(afs_name, pattern = "aggregate")) %>%  # I want to create a new version of afs_name column with the word aggregate removed wherever, because it does not add any information for us about the data 
+  filter(str_detect(afs_clean, pattern = "salmon")) %>%  #Filter keeps rows that we are interested in. Asking if a string is detected (if true is returned it keeps the row, if it's false it doesn't keep the row).The function  str_detect(salmon_landings$afs_clean. pattern = "salmon) -- tells me the TRUE or FALSE the rows that contain the pattern "salmon". But when we combine it with filter, it keeps or doesn't keep the rows
+  separate(afs_clean, into = c("group", "species"), sep = ",") # Separate my afs_clean column into two different columns named "group" and "species", and separate them by the character comma 
+  
+# Start to think that developers were thoughtful when giving function names. Should be able to expect what the function does based on the name 
+
+```
+
+Find some grouped summary data:
+
+Find annual total US landings and dollar value (summing across all states) for each TYPE of salmon using 'group_by()' + 'summarize()' 
+
+```{r, echo = FALSE}
+
+salmon_summary <- salmon_landings  %>% 
+  group_by(year, species) %>% 
+  summarize(
+    tot_landings = sum(landings_pounds), #add a column that is the total landings in pounds by year and species
+    tot_value = sum(dollars_num) # add total value for dollar value 
+  )
+
+
+
+```
+
+
+Make a graph!
+
+```{r, echo = FALSE}
+
+salmon_landings_graph <- ggplot(data = salmon_summary,
+                                aes(x = year, y = tot_landings)) +
+  geom_line(aes(color = species)) 
+
+
+#Need to tell ggplot that we're using it, the data, and which type of graph. Could set a group aesthetic for the graph, for example by species (e.g.  aes(x = year, y = tot_landings, group = species)). Or you can do this in geom_line (e.g. geom_line(aes(color = species))
+
+
+salmon_landings_graph
+
+
+```
+
+
+Now we will export our graph with ggsave:
+
+```{r, echo = FALSE}
+
+ggsave(plot = salmon_landings_graph,
+       here("figures", "us_salmon_toh.png"),
+       height = 5,
+       width = 8) #Save the plot in the folder named figures and name it as "us_salmon_toh" using the "here" package. Specify what the size is. The default is 7x7
+
+```
+
+Make a nice kable table:
+
+```{r, echo = FALSE}
+
+# Make a dataset with top 5 lines of salmon summary data using "head". The default is the top 6. 
+
+salmon_first_5 <- salmon_summary %>% 
+  head(5)
+
+```
+
+Use kable:
+```{r}
+
+kable(salmon_first_5) %>% 
+  kable_styling(bootstrap_options = "striped", 
+                full_width = FALSE)
+
+# Need to update column names. Can use janitor functions to change to scientific notation and add $$ 
+```
+
